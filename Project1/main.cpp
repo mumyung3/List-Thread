@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <ctime>
 
+
 #pragma comment(lib, "winmm.lib")
 
 using namespace std;
@@ -17,6 +18,8 @@ HANDLE g_hWorkerEvent;
 HANDLE g_hDeleteEvent;
 HANDLE g_hPrintEvent;
 HANDLE g_hSaveEvent;
+SRWLOCK g_srwLock;
+
 
 unsigned __stdcall PrintThread(void* arg) // 읽기
 {
@@ -25,9 +28,14 @@ unsigned __stdcall PrintThread(void* arg) // 읽기
 		WaitForSingleObject(g_hPrintEvent, INFINITE);
 		wprintf(L"PrintThread :");
 
+
+		AcquireSRWLockShared(&g_srwLock);
 		for (list<int>::iterator it = lst.begin(); it != lst.end(); ++it) {
 			wprintf(L"%d ", *it);
 		}
+		ReleaseSRWLockShared(&g_srwLock);
+
+
 		wprintf(L"\n");
 
 	}
@@ -41,9 +49,16 @@ unsigned __stdcall DeleteThread(void* arg) // 읽기 쓰기 ?
 		WaitForSingleObject(g_hDeleteEvent, INFINITE);
 		wprintf(L"DeleteThread!\n");
 
+		AcquireSRWLockExclusive(&g_srwLock);
+
 		if (!lst.empty()) {
+
 			lst.pop_back();
+
 		}
+		ReleaseSRWLockExclusive(&g_srwLock);
+
+
 	}
 	return 0;
 }
@@ -58,8 +73,10 @@ unsigned __stdcall WorkerThread(void* arg) // 쓰기
 		ResetEvent(g_hWorkerEvent);
 		wprintf(L"WorkerThread!\n");
 
+		AcquireSRWLockExclusive(&g_srwLock);
 		lst.push_back(rand() % 100 + 1);
 
+		ReleaseSRWLockExclusive(&g_srwLock);
 	}
 
 	return 0;
@@ -78,9 +95,12 @@ unsigned __stdcall SaveThread(void* arg) // 읽기
 
 		if (pFile != nullptr) {
 
+
+			AcquireSRWLockShared(&g_srwLock);
 			for (int value : lst) {
 				fwprintf(pFile, L"%d-", value);
 			}
+			ReleaseSRWLockShared(&g_srwLock);
 
 			fclose(pFile);
 		}
@@ -90,9 +110,11 @@ unsigned __stdcall SaveThread(void* arg) // 읽기
 }
 
 
-
 int main()
 {
+
+	InitializeSRWLock(&g_srwLock);
+
 	// 유니코드 출력 초기화
 	int tmp = _setmode(_fileno(stdout), _O_U16TEXT);
 	timeBeginPeriod(1);
