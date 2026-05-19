@@ -20,7 +20,6 @@ HANDLE g_hPrintEvent;
 HANDLE g_hSaveEvent;
 SRWLOCK g_srwLock;
 
-
 unsigned __stdcall PrintThread(void* arg) // 읽기
 {
 	while (1) {
@@ -49,15 +48,15 @@ unsigned __stdcall DeleteThread(void* arg) // 읽기 쓰기 ?
 		WaitForSingleObject(g_hDeleteEvent, INFINITE);
 		wprintf(L"DeleteThread!\n");
 
-		AcquireSRWLockExclusive(&g_srwLock);
 
-		if (!lst.empty()) {
-
-			lst.pop_back();
-
+		// 5000번 반복 추가
+		for (int i = 0; i < 5000; i++) {
+			AcquireSRWLockExclusive(&g_srwLock);
+			if (!lst.empty()) {
+				lst.pop_back();
+			}
+			ReleaseSRWLockExclusive(&g_srwLock);
 		}
-		ReleaseSRWLockExclusive(&g_srwLock);
-
 
 	}
 	return 0;
@@ -73,10 +72,12 @@ unsigned __stdcall WorkerThread(void* arg) // 쓰기
 		ResetEvent(g_hWorkerEvent);
 		wprintf(L"WorkerThread!\n");
 
-		AcquireSRWLockExclusive(&g_srwLock);
-		lst.push_back(rand() % 100 + 1);
-
-		ReleaseSRWLockExclusive(&g_srwLock);
+		// 10000번 반복 추가
+		for (int i = 0; i < 10000; i++) {
+			AcquireSRWLockExclusive(&g_srwLock);
+			lst.push_back(rand() % 100 + 1);
+			ReleaseSRWLockExclusive(&g_srwLock);
+		}
 	}
 
 	return 0;
@@ -97,6 +98,9 @@ unsigned __stdcall SaveThread(void* arg) // 읽기
 
 
 			AcquireSRWLockShared(&g_srwLock);
+			wprintf(L"[Save] 락 획득! 파일 쓰는 중...\n");
+			Sleep(3000);  // 3초 대기 추가
+
 			for (int value : lst) {
 				fwprintf(pFile, L"%d-", value);
 			}
@@ -136,10 +140,10 @@ int main()
 	hThreads[5] = (HANDLE)_beginthreadex(nullptr, 0, SaveThread, nullptr, 0, nullptr);
 
 	while (1) {
-		Sleep(333);
+		//Sleep(333);
 		SetEvent(g_hDeleteEvent);   // Worker: 즉시
 
-		Sleep(666);
+		//Sleep(666);
 		SetEvent(g_hWorkerEvent);   // Worker: 즉시
 		SetEvent(g_hPrintEvent);    // Print: 0.5초 후
 		// 키 눌렀을 시 파일 저장
